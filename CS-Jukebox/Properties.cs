@@ -1,211 +1,178 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
-using System.Runtime.Serialization;
+using System.Linq;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 
 namespace CS_Jukebox
 {
-    static class Properties
+    internal static class Properties
     {
-        //Paths
-        public static readonly string ConfigPath = @"\csgo\cfg\gamestate_integration_jukebox.cfg";
-        public static readonly string ConfigName = @"\gamestate_integration_jukebox.cfg";
-        public static readonly string PropertiesFilePath = @"\properties.json";
-        public static readonly string MusicKitsPath = @"\kits";
+        private const string ConfigName = "gamestate_integration_jukebox.cfg";
+        private const string PropertiesFileName = "properties.json";
+        private const string MusicKitsDirectoryName = "kits";
 
-        public static string GameDir = null;
-        public static int MasterVolume;
-        public static MusicKit SelectedKit
+        public static string GameDir { get; set; } = string.Empty;
+        public static int MasterVolume { get; set; }
+
+        public static MusicKit? SelectedKit
         {
-            get { return selectedKit; }
-            set { SetKit(value); }
+            get => selectedKit;
+            set => SetKit(value);
         }
 
-        public static List<MusicKit> MusicKits = null;
+        public static List<MusicKit> MusicKits { get; private set; } = new();
 
-        private static string startDir;
+        private static MusicKit? selectedKit;
+        private static string? selectedKitName;
 
-        private static MusicKit selectedKit = null;
-        private static string SelectedKitName = null;
-
-        //Calls all load methods
         public static void Load()
         {
             LoadProperties();
             LoadKits();
         }
 
-        //Calls all save methods
         public static void Save()
         {
             SaveProperties();
             SaveKits();
         }
 
-        //Converts settings to json file then saves it
+        public static string GetConfigDirectory()
+        {
+            if (string.IsNullOrWhiteSpace(GameDir))
+                return string.Empty;
+
+            var gameCsgoCfg = Path.Combine(GameDir, "game", "csgo", "cfg");
+            if (Directory.Exists(gameCsgoCfg))
+                return gameCsgoCfg;
+
+            var legacyCsgoCfg = Path.Combine(GameDir, "csgo", "cfg");
+            if (Directory.Exists(legacyCsgoCfg))
+                return legacyCsgoCfg;
+
+            return gameCsgoCfg;
+        }
+
+        public static void CreateConfig()
+        {
+            if (string.IsNullOrWhiteSpace(GameDir))
+                return;
+
+            var cfgDir = GetConfigDirectory();
+            Directory.CreateDirectory(cfgDir);
+
+            var configSrc = Path.Combine(AppContext.BaseDirectory, ConfigName);
+            var configDest = Path.Combine(cfgDir, ConfigName);
+
+            if (File.Exists(configDest))
+                File.Delete(configDest);
+
+            File.Copy(configSrc, configDest);
+        }
+
         public static void SaveProperties()
         {
-            string dir = startDir + PropertiesFilePath;
+            var propertiesPath = Path.Combine(AppContext.BaseDirectory, PropertiesFileName);
+            var properties = new PropertiesFile
+            {
+                GameDir = GameDir,
+                SelectedKitName = selectedKitName,
+                MasterVolume = MasterVolume
+            };
 
-            PropertiesFile propFile = new PropertiesFile();
-            propFile.GameDir = GameDir;
-            propFile.SelectedKitName = SelectedKitName;
-            propFile.MasterVolume = MasterVolume;
-            Console.WriteLine(propFile.GameDir);
-
-            string jsonFile = JsonConvert.SerializeObject(propFile);
-
-            Console.WriteLine("Saving json properties: ");
-            Console.WriteLine(jsonFile);
-            File.WriteAllText(dir, jsonFile);
+            File.WriteAllText(propertiesPath, JsonConvert.SerializeObject(properties));
         }
 
-        //Reads properties file then deserializes it
         public static void LoadProperties()
         {
-            //startDir = Directory.GetCurrentDirectory();
-            startDir = GetAppDirectory();
-            Console.WriteLine("App Directory: " + startDir);
-            string dir = startDir + PropertiesFilePath;
-            PropertiesFile propFile;
+            var propertiesPath = Path.Combine(AppContext.BaseDirectory, PropertiesFileName);
+            if (!File.Exists(propertiesPath))
+                return;
 
-            try
-            {
-                string jsonFile = File.ReadAllText(dir);
-                propFile = JsonConvert.DeserializeObject<PropertiesFile>(jsonFile);
-                GameDir = propFile.GameDir;
-                SelectedKitName = propFile.SelectedKitName;
-                MasterVolume = propFile.MasterVolume;
-            }
-            catch (FileNotFoundException e)
-            {
-                propFile = new PropertiesFile();
-            }
-        }
+            var json = File.ReadAllText(propertiesPath);
+            var properties = JsonConvert.DeserializeObject<PropertiesFile>(json);
 
-        private static string GetAppDirectory()
-        {
-            string[] execPath = Application.ExecutablePath.Split('\\');
-            string appDir = "";
+            if (properties == null)
+                return;
 
-            for (int i = 0; i < execPath.Length - 1; i++)
-            {
-                appDir += execPath[i];
-                if (i < execPath.Length - 2) appDir += "\\";
-            }
-
-            return appDir;
-        }
-
-        //Copies the config from local folder to CS:GO cfg folder
-        public static void CreateConfig()
-        {string configPath = Properties.GameDir + Properties.ConfigPath;
-            string configSrc = startDir + Properties.ConfigName;
-
-            if (File.Exists(configPath))
-            {
-                File.Delete(configPath);
-                File.Copy(configSrc, configPath);
-            }
-            else
-            {
-                File.Copy(configSrc, configPath);
-            }
+            GameDir = properties.GameDir ?? string.Empty;
+            selectedKitName = properties.SelectedKitName;
+            MasterVolume = properties.MasterVolume;
         }
 
         public static void SaveKits()
         {
-            string dir = startDir + MusicKitsPath;
+            var kitDirectory = Path.Combine(AppContext.BaseDirectory, MusicKitsDirectoryName);
+            Directory.CreateDirectory(kitDirectory);
 
-            Directory.CreateDirectory(dir);
-
-            foreach (MusicKit musicKit in MusicKits)
+            foreach (var musicKit in MusicKits)
             {
-                Console.WriteLine("Saving song: " + musicKit.Name);
-                string kitDir = dir + @"\" + musicKit.Name + ".json";
-                Console.WriteLine(kitDir);
-                string jsonFile = JsonConvert.SerializeObject(musicKit);
-                Console.WriteLine(jsonFile);
-                File.WriteAllText(kitDir, jsonFile);
+                var kitPath = Path.Combine(kitDirectory, $"{musicKit.Name}.json");
+                File.WriteAllText(kitPath, JsonConvert.SerializeObject(musicKit));
             }
         }
 
         public static void LoadKits()
         {
-            string dir = startDir + MusicKitsPath;
+            var kitDirectory = Path.Combine(AppContext.BaseDirectory, MusicKitsDirectoryName);
             MusicKits = new List<MusicKit>();
 
-            if (Directory.Exists(dir))
+            if (!Directory.Exists(kitDirectory))
             {
-                foreach (string filePath in Directory.GetFiles(dir))
-                {
-                    if (!filePath.EndsWith(".json")) continue;
-                    string jsonFile = "";
+                Directory.CreateDirectory(kitDirectory);
+                return;
+            }
 
-                    try
-                    {
-                        jsonFile = File.ReadAllText(filePath);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Exception when trying to load music kits.");
-                        Console.WriteLine(e.StackTrace);
-                    }
-                    finally
-                    {
-                        MusicKit musicKit = JsonConvert.DeserializeObject<MusicKit>(jsonFile);
-                        MusicKits.Add(musicKit);
-                    }
+            foreach (var filePath in Directory.GetFiles(kitDirectory, "*.json"))
+            {
+                try
+                {
+                    var json = File.ReadAllText(filePath);
+                    var kit = JsonConvert.DeserializeObject<MusicKit>(json);
+                    if (kit != null)
+                        MusicKits.Add(kit);
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Exception when trying to load music kit '{filePath}': {ex.Message}");
+                }
+            }
+
+            if (MusicKits.Count == 0)
+                return;
+
+            var selectedMatch = MusicKits.FirstOrDefault(k => string.Equals(k.Name, selectedKitName, StringComparison.Ordinal));
+            if (selectedMatch != null)
+            {
+                SelectedKit = selectedMatch;
             }
             else
             {
-                Directory.CreateDirectory(dir);
-            }
-
-            //Find a value for SelectedKit if applicable
-            if (MusicKits.Count > 0)
-            {
-                foreach (MusicKit musicKit in MusicKits)
-                {
-                    if (musicKit.Name.Equals(SelectedKitName))
-                    {
-                        SelectedKit = musicKit;
-                    }
-                }
-
-                if (SelectedKit == null)
-                {
-                    SelectedKit = MusicKits[0];
-                }
+                SelectedKit = MusicKits[0];
             }
         }
 
-        //Deletes the json file for a kit but not the kit itself
         public static void DeleteKitFile(string kitName)
         {
-            string dir = startDir + MusicKitsPath;
-            string kitDir = dir + @"\" + kitName + ".json";
-            File.Delete(kitDir);
+            var kitDirectory = Path.Combine(AppContext.BaseDirectory, MusicKitsDirectoryName);
+            var kitPath = Path.Combine(kitDirectory, $"{kitName}.json");
+            if (File.Exists(kitPath))
+                File.Delete(kitPath);
         }
 
-        private static void SetKit(MusicKit newKit)
+        private static void SetKit(MusicKit? newKit)
         {
             selectedKit = newKit;
-            SelectedKitName = selectedKit.Name;
+            selectedKitName = newKit?.Name;
         }
 
-        //Inner class for properties parameters
-        private class PropertiesFile
+        private sealed class PropertiesFile
         {
-            public string GameDir;
-            public string SelectedKitName;
-            public int MasterVolume;
+            public string? GameDir { get; set; }
+            public string? SelectedKitName { get; set; }
+            public int MasterVolume { get; set; }
         }
     }
 }

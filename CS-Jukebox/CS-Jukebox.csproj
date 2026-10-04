@@ -4,12 +4,13 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <RootNamespace>CS_Jukebox</RootNamespace>
     <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CS_Jukebox</RootNamespace>
     <StartupObject>CS_Jukebox.Program</StartupObject>
     <ApplicationIcon>logo.ico</ApplicationIcon>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,7 +35,7 @@
 
   <ItemGroup>
     <None Update="gamestate_integration_jukebox.cfg">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
